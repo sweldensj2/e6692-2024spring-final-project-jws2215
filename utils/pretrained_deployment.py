@@ -15,7 +15,8 @@ import cv2
 import IPython
 from IPython.display import display
 import requests
-
+from bs4 import BeautifulSoup
+import json
 
 from .install_dependancies import install_dependancies
 
@@ -213,6 +214,55 @@ def download_images_with_resize(query, num_images, target_size=(320, 320)):
         except Exception as e:
             print("Error:", e)
             break
+
+def download_images_full_size(query, num_images, download_folder):
+    """
+    Download full-size images from Google Images search results.
+
+    Params:
+        query (str): Google image query.
+        num_images (int): Number of images to download.
+        download_folder (str): Folder path to save the downloaded images.
+    """
+
+    query = '+'.join(query.split())
+    url = f"https://www.google.com/search?q={query}&source=lnms&tbm=isch"
+
+    # Set up request headers
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.134 Safari/537.36'
+    }
+
+    # Send request to Google Images URL
+    response = requests.get(url, headers=headers)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    # Extract image links
+    actual_images = []
+    for div in soup.find_all("div", {"class": "rg_meta"}):
+        metadata = json.loads(div.text)
+        link, image_type = metadata["ou"], metadata["ity"]
+        actual_images.append((link, image_type))
+
+    print(f"There are a total of {len(actual_images)} images.")
+
+    # Create download folder if it doesn't exist
+    if not os.path.exists(download_folder):
+        os.makedirs(download_folder)
+
+    # Download images
+    for i, (img, img_type) in enumerate(actual_images[:num_images]):
+        try:
+            img_response = requests.get(img, headers=headers)
+            img_content = img_response.content
+            img_filename = f"{query}_{i+1}.{img_type}" if img_type else f"{query}_{i+1}.jpg"
+            img_path = os.path.join(download_folder, img_filename)
+            with open(img_path, 'wb') as f:
+                f.write(img_content)
+            print(f"Downloaded image {i+1}/{num_images}: {img_filename}")
+        except Exception as e:
+            print(f"Could not load: {img}")
+            print(e)
 
 
 def display_image(image):
